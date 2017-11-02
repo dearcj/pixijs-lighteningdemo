@@ -24,6 +24,7 @@ const GLOBAL_ASSETS = [
    ///////////////////////////////////////////
 
     'tiles1.json',
+    'smallfontx1.xml',
 ];
 
 export let PIXI = window.PIXI;
@@ -52,6 +53,10 @@ const DEBUG = false;
 
 //asdasd
 export class Main {
+    lightLayer: any;
+    bg1: any;
+    bg2: any;
+    startSpawn: boolean;
     // public menu: Menu = new Menu();
     // public game: Game = new Game();
     // public shop: GameShop = new GameShop();
@@ -81,8 +86,6 @@ export class Main {
     public loader: any;
     // public sm: SM;
     // public lm: LM;
-    public renderer: any;
-    public camera: any;
 
     public worldSpeed: number = 1;
     public debug: boolean = true;
@@ -99,13 +102,11 @@ export class Main {
     public shaders: Object = {};
     // private prevPos: Vec2 = null;
     private loadingCounter: number = 0;
+    private bg: PIXI.Container;
 
     constructor() {
         this.__DIR = location.pathname.substring(0, location.pathname.lastIndexOf('/') + 1);
     }
-
-
-
     static GET(url: string, cb: Function) {
         let xmlHttp = new XMLHttpRequest();
         xmlHttp.onreadystatechange = function () {
@@ -117,57 +118,11 @@ export class Main {
         xmlHttp.send(null);
     }
 
-
-
     start() {
-
-        if (DEBUG) {
-            (function () {
-
-                // PIXI.Sprite
-
-                PIXI.Sprite.drawCount = 0;
-
-                PIXI.Sprite.prototype.__renderWebGL = PIXI.Sprite.prototype._renderWebGL;
-                PIXI.Sprite.prototype._renderWebGL = function (renderer) {
-                    PIXI.Sprite.drawCount++;
-                    this.__renderWebGL(renderer);
-                };
-
-
-                PIXI.Sprite.prototype.__renderCanvas = PIXI.Sprite.prototype._renderCanvas;
-                PIXI.Sprite.prototype._renderCanvas = function (renderer) {
-                    PIXI.Sprite.drawCount++;
-                    this.__renderCanvas(renderer);
-                };
-
-
-                // PIXI.Container
-
-                PIXI.Container.drawCount = 0;
-
-                PIXI.Container.prototype.__renderWebGL = PIXI.Container.prototype._renderWebGL;
-                PIXI.Container.prototype._renderWebGL = function (renderer) {
-                    PIXI.Container.drawCount++;
-                    this.__renderWebGL(renderer);
-                };
-
-
-                PIXI.Container.prototype.__renderCanvas = PIXI.Container.prototype._renderCanvas;
-                PIXI.Container.prototype._renderCanvas = function (renderer) {
-                    PIXI.Container.drawCount++;
-                    this.__renderCanvas(renderer);
-                };
-
-
-            })();
-
-        }
         let pr = "testprivate";
         let pub = "testpublic";
 
         document.addEventListener('contextmenu', (event) => {
-            console.log('PENIS');
             if (this.onContext) this.onContext();
             event.preventDefault()
         });
@@ -176,129 +131,108 @@ export class Main {
             // this.saveAnalytics()
         }, 10 * 1000);
 
+        this.stats = new Stats();
+
+        document.body.appendChild(this.stats.domElement);
+        this.stats.domElement.style.position = "absolute";
+        this.stats.domElement.style.top = "0px";
 
         // document.body.requestPointerLock();
-
         // this.controls = new Controls();
         this.PIXI = PIXI;
-        this.renderer = new PIXI.WebGLRenderer(SCR_WIDTH, SCR_HEIGHT, {resolution: 1, antialias: true, backgroundColor: 0x99dddd});
-        document.body.appendChild(this.renderer.view);
-        this.camera = new PIXI.Camera3d();
-        this.camera.easyPerspective(this.renderer, 300, 10, 1000);
-        this.camera.transform.x = -SCR_WIDTH / 2;
-        this.camera.transform.y = -SCR_HEIGHT/ 2;
-        _.camera.lookPosition.x = SCR_WIDTH / 2;
-        _.camera.lookPosition.y = SCR_HEIGHT / 2;
 
-        this.camera.lookEuler.x = -Math.PI / 200;
-
-        let debugCamera = false;
-
-
-
-        this.app = {};
-        this.app.stage = new PIXI.Container();
-
+        this.app = new PIXI.Application(SCR_WIDTH, SCR_HEIGHT, {resolution: 1, antialias: true,
+            preserveDrawingBuffer: true });
+        document.body.appendChild(this.app.view);
+        this.app.ticker.add(this.animate.bind(this));
 
 
         requestAnimationFrame(this.animate.bind(this));
     };
 
 
-
-
     addSprite(px: number, py: number): PIXI.Sprite {
         let tex = PIXI.Texture.fromFrame("wall2.png");
-        let s = new PIXI.Sprite3d(tex);
+        let s = new PIXI.Sprite(tex);
         s.x = px;
         s.y = py;
         return s
     }
 
-    loadComplete(): void {
-        this.isInitialLoading = false;
-        let bg1 = new PIXI.Container3d();
-        let bg2 = new PIXI.Container3d();
-        bg1.z = 10;
-        bg2.z = 50;
-
-        //Light layer in front of everything but has same transformations as bg2
-        let lightLayer= new PIXI.Container3d();
-        lightLayer.z = 50;
-
-        this.app.stage.addChild(this.camera);
-        this.camera.addChild(bg2);
-        this.camera.addChild(bg1);
-        this.camera.addChild(lightLayer);
-
-
-        for (let x = 0; x < 20; ++x) {
-            for (let y = 0; y < 20; ++y) {
-                if (x == 1 && y == 1) continue;
-                let s = this.addSprite(x*90, y*90);
-                s.tint = 0x778899;
-                bg2.addChild(s)
-            }
+    cs(s: string, layer: PIXIContainer = null): PIXI.Sprite { //create sprite from frame and add to default layer
+        let texture = PIXI.Texture.fromFrame(s);
+        let gfx = new PIXI.Sprite(texture);
+        gfx.anchor.x = .5;
+        gfx.anchor.y = .5;
+        if (layer)
+            layer.addChild(gfx); else {
+            // _.sm.ol.addChild(gfx);
         }
 
-
-        for (let x = 0; x < 20; ++x) {
-            for (let y = 0; y < 20; ++y) {
-                if (Math.random() > .6) {
-                    let s = this.addSprite(x*90, y*90);;
-                    bg1.addChild(s)
-                }
-            }
-        }
-
-        let delta = 140;
-
-        let l = {
-            gfx: new PIXI.Sprite(),
-            ambient: PIXI.Graphics,
-            newAmbient: function (col) {
-                    let a = new PIXI.Graphics();
-                    a.clear();
-
-                    a.beginFill(col, 1);
-                    a.drawRect(this.filterArea.x, this.filterArea.y, this.filterArea.width, this.filterArea.height);
-                    a.endFill();
-                    return a;
-                },
-
-            addLight(l: PIXI.Sprite): void{
-                l.blendMode = PIXI.BLEND_MODES.ADD;
-                this.gfx.addChild(l);
-            },
-            filterArea: new PIXI.Rectangle(-delta, -delta, SCR_WIDTH + 2*delta, SCR_HEIGHT + 2*delta),
-        };
-        l.ambient = l.newAmbient(0x98dede);
-        l.gfx.filters = [new PIXI.filters.VoidFilter()];
-        l.gfx.filters[0].blendMode = PIXI.BLEND_MODES.MULTIPLY;
-        l.gfx.filterArea = l.filterArea;
-        lightLayer.addChild(l.gfx);
-        l.gfx.addChild(l.ambient);
-
-        //this is front smooth light it shouldnt cut
-        let s = new PIXI.Sprite3d(PIXI.Texture.fromFrame("lightship.png"));
-        s.x = 300;
-        s.y = 100;
-        l.addLight(s);
-
-        //here's windows, windows should be cutted
-        s = new PIXI.Sprite3d(PIXI.Texture.fromFrame("lightsqure.png"));
-        s.x = -s.width/2 + 100;
-        s.y = -s.height/2+ 120;
-
-
-        let mask = new PIXI.Sprite(PIXI.Texture.fromFrame("bullettest.png"));
-        this.camera.addChild(mask);
-//        s.mask = mask;
-
-        l.addLight(s)
-
+        //this.sm.ol.addChild(gfx);
+        return gfx
     }
 
+    loadComplete(): void {
+
+        document.addEventListener("keydown", (e) => {
+            let keyCode = e.keyCode;
+            switch (keyCode) {
+                case 68: //d
+                    this.restartScene();
+                    break;
+            }
+        });
+
+
+        this.isInitialLoading = false;
+        this.bg = new PIXI.Container();
+        this.bg1 = new PIXI.Container();
+        this.bg2 = new PIXI.Container();
+        this.bg1.z = 10;
+        this.bg2.z = 50;
+
+        //Light layer in front of everything but has same transformations as bg2
+        this.lightLayer= new PIXI.Container();
+        this.lightLayer.z = 50;
+
+        this.app.stage.interactive = true;
+        this.app.stage.mousedown = (e)=>{
+            this.startSpawn = true;
+        };
+        this.app.stage.mouseup = (e)=>{
+            this.startSpawn = false;
+        };
+
+        this.app.stage.addChild(this.bg);
+        this.bg.addChild(this.bg2);
+        this.bg.addChild(this.bg1);
+        this.app.stage.addChild(this.lightLayer);
+    }
+
+
+    processSelectEffect() {
+        let PIXINeutrinoContext = window.PIXINeutrinoContext;
+        let PIXINeutrinoEffectModel = window.PIXINeutrinoEffectModel;
+        let PIXINeutrinoEffect = window.PIXINeutrinoEffect;
+        let neutrinoContext = new PIXINeutrinoContext(_.app.renderer);
+
+        let effectModel = new PIXINeutrinoEffectModel(
+            neutrinoContext,
+            '../LightingDemo/effects/water_stream.js'
+        );
+
+        let effect = new PIXINeutrinoEffect(
+            effectModel,
+            [200, 200, 0],	// Starting position of effect
+            0,			// (optional) Starting rotation in degrees
+            [1, 1, 1],	// (optional) Starting scale for X, Y and Z axes
+        );
+        this.bg.addChild(effect);
+        setInterval(() => {
+            effect.update(16)
+        }, 16);
+    }
 
     load(): void {
         this.loader = new this.PIXI.loaders.Loader();
@@ -332,15 +266,194 @@ export class Main {
         this.loader.load();
     }
 
+    recursiveMove(cont: PIXI.Container): void {
+        for (let x of cont.children) {
+            if (x instanceof PIXI.Container) {
+                this.recursiveMove(x)
+            }
+
+            if (x instanceof PIXI.Sprite) {
+                let dx = SCR_WIDTH / 2 - x.x ;
+                let dy = SCR_HEIGHT / 2 - x.y ;
+                x.x += dx / 1000;
+                x.y += dy / 1000;
+            }
+        }
+    }
     animate(): void {
+        this.stats.begin();
+
         this.random = Math.random();
         this.time = (new Date()).getTime();
-        let pos = this.renderer.plugins.interaction.mouse.global;
+        let pos = this.app.renderer.plugins.interaction.mouse.global;
+
+        if (this.startSpawn) {
+            let spr = _.cs("bluebonus.png", null);
+            spr.x = pos.x + 40*(Math.random() - 0.5);
+            spr.y = pos.y + 40*(Math.random() - 0.5);
+            if (this.random > 0.6)
+            {
+                this.bg1.addChild(spr);
+            } else
+            if (this.random > 0.3) {
+          //      this.bg1.addChild(spr);
+            } //else
+
+            let tf = new PIXI.extras.BitmapText("asdasd dfsdf" + Math.random().toString(), {font: "smallfontx1", alight: "center"});
+            let mask = new PIXI.Graphics();
+            mask.clear();
+            mask.beginFill(0xffffff, 1);
+            let w = tf.width - 10;
+            let value = Math.random();
+            mask.drawRect(-w / 2, w * (1 - value) - w / 2, w, w * (value));
+            mask.endFill();
+            tf.mask = mask;
+            tf.addChild(mask);
+            tf.x = pos.x;
+            tf.y = pos.y;
+            tf.scale.x = Math.random() + 1;
+            tf.scale.y = Math.random() + 1;
+            tf.tint = Math.random()*9999999;
+            this.bg1.addChild(tf);
+            this.recursiveMove(this.app.stage);
+
+            tf.alpha = Math.random();
+
+            if (Math.random() < 0.1)
+                tf.alpha = 0;
 
 
-        requestAnimationFrame(this.animate.bind(this));
+         //   this.lightLayer.addChild(spr);
+        }
+        this.stats.end();
 
-        this.renderer.render(this.app.stage);
+    }
+
+    private restartScene() {
+        this.resetScene();
+        for (let x = 0; x < 20; ++x) {
+            for (let y = 0; y < 20; ++y) {
+                if (x == 1 && y == 1) continue;
+                let s = this.addSprite(x*90, y*90);
+                s.scale.x = 50;
+                s.scale.y= 50;
+                s.tint = 0x778899;
+                this.bg2.addChild(s)
+            }
+        }
+
+
+        for (let x = 0; x < 20; ++x) {
+            for (let y = 0; y < 20; ++y) {
+                if (Math.random() > .6) {
+                    let s = this.addSprite(x*90, y*90);
+                    s.tint = 0xff000000;
+                    this.bg1.addChild(s)
+                }
+            }
+        }
+
+        let delta = 140;
+        let resetAmbient = (a: PIXI.Graphics, obj: any) => {
+            a.clear();
+
+
+            a.beginFill(91000000 + (0.5 + 0.5 * Math.sin((new Date()).getSeconds() / 100))*255, 1);
+            a.drawRect(obj.x, obj.y, obj.width, obj.height);
+            a.endFill();
+        }
+
+        let l = {
+            gfx: new PIXI.Sprite(),
+            ambient: PIXI.Graphics,
+
+
+            newAmbient: function (col) {
+                let a = new PIXI.Graphics();
+                return a;
+            },
+
+            addLight(l: PIXI.Sprite): void{
+                l.blendMode = PIXI.BLEND_MODES.ADD;
+                l.tint = 0xff000000;
+                this.gfx.addChild(l);
+            },
+            filterArea: new PIXI.Rectangle(-delta, -delta, SCR_WIDTH + 2*delta, SCR_HEIGHT + 2*delta),
+        };
+
+
+        setInterval(() => {
+            resetAmbient(l.ambient, l.filterArea)
+        }, 30);
+
+        l.ambient = l.newAmbient(0x556677);
+        l.gfx.filters = [new PIXI.filters.VoidFilter()];
+        l.gfx.filters[0].blendMode = PIXI.BLEND_MODES.MULTIPLY;
+        l.gfx.filterArea = l.filterArea;
+        this.lightLayer.addChild(l.gfx);
+        l.gfx.addChild(l.ambient);
+
+        //this is front smooth light it shouldnt cut
+        let s = new PIXI.Sprite(PIXI.Texture.fromFrame("lightship.png"));
+        s.x = 300;
+        s.y = 100;
+        l.addLight(s);
+
+        //here's windows, windows should be cutted
+        s = new PIXI.Sprite(PIXI.Texture.fromFrame("lightsqure.png"));
+        s.x = -s.width/2 + 100;
+        s.y = -s.height/2+ 120;
+        let brt = new PIXI.BaseRenderTexture(s.width, s.height, PIXI.SCALE_MODES.LINEAR, 1);
+        let rt = new PIXI.RenderTexture(brt);
+        let mask = new PIXI.Sprite(rt);
+        mask.x = 0;
+        mask.y = 0;
+
+
+
+        //bg1.x = - 100;
+        // bg1.y = - 100;
+        // bg1.tint = 0x000000;
+        /* let clr = new PIXI.Graphics();
+         clr.clear();
+
+         clr.beginFill(0x000000, 1);
+         clr.drawRect(0, 0, 2000, 2000);
+         clr.endFill();*/
+        setTimeout(1000, () => {
+
+            //           this.app.stage.addChild(clr);
+//            this.renderer.render(clr, rt);
+
+            mask.x += 200;
+            mask.y += 200;
+        });
+        this.bg1.x = 12;
+        this.bg1.y = -20;
+
+        //   this.app.stage.addChild(mask);
+        //s.addChild(mask);
+        //s.mask = mask;
+        //this.app.stage.addChild(mask);
+        l.addLight(s);
+        if (!this.check) {
+            this.check = true;
+            this.processSelectEffect();
+        }
+    }
+
+    private resetScene() {
+        for (let x = this.bg1.children.length - 1; x > 0; x--) {
+           this.bg1.removeChildAt(0)
+        }
+
+        for (let x = this.bg2.children.length - 1; x > 0; x--) {
+            this.bg2.removeChildAt(0)
+        }
+
+        for (let x = this.lightLayer.children.length - 1; x > 0; x--) {
+            this.lightLayer.removeChildAt(0)
+        }
     }
 }
 
